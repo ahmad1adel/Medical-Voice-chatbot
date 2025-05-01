@@ -163,7 +163,7 @@ Pygments==2.19.1
 PyJWT==2.10.1
 pylance==0.24.1
 pypdf==5.3.1
-pypiwin32==223
+pypiwin32==223s
 python-bidi==0.6.6
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
@@ -172,7 +172,6 @@ python-multipart==0.0.18
 python-socketio==5.12.1
 pyttsx3==2.98
 pytz==2025.1
-pywin32==310
 PyYAML==6.0.2
 regex==2024.11.6
 requests==2.32.3
