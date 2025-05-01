@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Medical Assistant</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Animated Ball Styles */
+        .animated-ball {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ffffff, #3498db, #2980b9);
+            background-size: 300% 300%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .animated-ball::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            filter: blur(8px);
+            opacity: 0.7;
+            z-index: -1;
+        }
+
+        .animated-ball::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: transparent;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+
+        .animated-ball.idle {
+            animation: gradientFlow 6s ease infinite;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+
+        .animated-ball.recording {
+            animation: gradientFlow 3s ease infinite;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .animated-ball.playing {
+            animation: gradientFlow 3s ease infinite;
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        }
+
+        .animated-ball.recording::after {
+            background: rgba(231, 76, 60, 0.7);
+            animation: pulseRecording 1.5s ease-in-out infinite;
+        }
+
+        .animated-ball.playing::after {
+            background: rgba(46, 204, 113, 0.7);
+            animation: pulsePlaying 1.5s ease-in-out infinite;
+        }
+
+        @keyframes gradientFlow {
+            0% {
+                background-position: 0% 50%;
+                box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
+            }
+            50% {
+                background-position: 100% 50%;
+                box-shadow: 0 0 30px rgba(52, 152, 219, 0.6);
+            }
+            100% {
+                background-position: 0% 50%;
+                box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
+            }
+        }
+
+        @keyframes pulseRecording {
+            0% {
+                opacity: 0.5;
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
+            }
+            50% {
+                opacity: 0.8;
+                transform: scale(1.1);
+                box-shadow: 0 0 30px rgba(231, 76, 60, 0.6);
+            }
+            100% {
+                opacity: 0.5;
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
+            }
+        }
+
+        @keyframes pulsePlaying {
+            0% {
+                opacity: 0.5;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: scale(1.1);
+            }
+            100% {
+                opacity: 0.5;
+                transform: scale(1);
+            }
+        }
+
+        /* Language Selection Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            color: white;
+        }
+
+        .modal-content select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #2a2a2a;
+            color: white;
+            border: 1px solid #3a3a3a;
+        }
+
+        .modal-content button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background-color: #10a37f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .modal-content button:hover {
+            background-color: #0d8c6d;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        #startCall {
+            background-color: #10a37f;
+            color: white;
+        }
+
+        #startCall:hover {
+            background-color: #0d8c6d;
+        }
+
+        #endCall {
+            background-color: #dc3545;
+            color: white;
+            display: none;
+        }
+
+        #endCall:hover {
+            background-color: #c82333;
+        }
+
+        #endCall:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        /* Floating Chat Button and Window Styles */
+        .chat-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10a37f, #0d8c6d);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(16, 163, 127, 0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .chat-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(16, 163, 127, 0.4);
+        }
+
+        .chat-popup {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: #1a1a1a;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+            z-index: 999;
+            border: 1px solid #2a2a2a;
+        }
+
+        .chat-popup.active {
+            display: flex;
+        }
+
+        .popup-header {
+            padding: 15px;
+            border-bottom: 1px solid #2a2a2a;
+            background: #1a1a1a;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .popup-messages {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #000000;
+        }
+
+        .popup-input {
+            padding: 15px;
+            background: #1a1a1a;
+            border-top: 1px solid #2a2a2a;
+            border-radius: 0 0 15px 15px;
+        }
+
+        .popup-input .input-group {
+            background: #2a2a2a;
+            border-radius: 25px;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .popup-input input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            outline: none;
+        }
+
+        .popup-input button {
+            background: transparent;
+            border: none;
+            color: #10a37f;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .popup-input button:hover {
+            color: #0d8c6d;
+        }
+
+        @media (max-width: 768px) {
+            .chat-popup {
+                width: 100%;
+                height: 100%;
+                bottom: 0;
+                right: 0;
+                border-radius: 0;
+            }
+            
+            .chat-button {
+                bottom: 10px;
+                right: 10px;
+            }
+        }
+
+        /* Chat Popup Styles */
+        .chat-popup {
+            display: none;
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 350px;
+            height: 500px;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            z-index: 1000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .messages-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f5f5f5;
+        }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Message Styles */
+        .message {
+            margin-bottom: 15px;
+            max-width: 85%;
+            clear: both;
+        }
+
+        .user-message {
+            float: right;
+        }
+
+        .ai-message {
+            float: left;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .user-message .message-content {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .ai-message .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Format AI responses */
+        .ai-message .message-content ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+
+        .ai-message .message-content li {
+            margin: 5px 0;
+        }
+
+        .ai-message .message-content h4 {
+            margin: 10px 0 5px 0;
+            color: #2c3e50;
+        }
+
+        /* Input Container */
+        .input-container {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .message-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .upload-btn, .send-btn {
+            background: none;
+            border: none;
+            color: #2c3e50;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+
+        .upload-btn:hover, .send-btn:hover {
+            background: #f0f0f0;
+        }
+
+        /* Chat Button */
+        .chat-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: #2c3e50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            z-index: 1000;
+        }
+
+        .chat-button:hover {
+            transform: scale(1.1);
+        }
+
+        .chat-button i {
+            color: white;
+            font-size: 24px;
+        }
+
+        /* Loading Indicator */
+        .loading {
+            display: inline-block;
+            margin: 10px;
+        }
+
+        .loading:after {
+            content: '...';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+
+        /* Slider Styles */
+        .message-slider {
+            width: 100%;
+            padding: 10px 0;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            margin: 10px 0;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #2c3e50;
+            cursor: pointer;
+            transition: background .3s;
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            background: #34495e;
+        }
+
+        .slider-value {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="animated-ball idle" id="animatedBall"></div>
+
+    <div class="controls" id="controls">
+        <button id="startCall">Start Voice Chat</button>
+        <button id="endCall" disabled>End Chat</button>
+    </div>
+
+    <!-- Add messages container -->
+    <div id="messages" style="display: none; position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; color: white; max-height: 300px; overflow-y: auto;"></div>
+
+    <!-- Language Selection Modal -->
+    <div class="modal" id="languageModal">
+        <div class="modal-content">
+            <h2>Select Language and Voice</h2>
+            <select id="languageSelect">
+                <option value="">Select Language</option>
+                <option value="ar-SA">Arabic</option>
+                <option value="en-US">English</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="it-IT">Italian</option>
+                <option value="pt-BR">Portuguese</option>
+                <option value="ru-RU">Russian</option>
+                <option value="ja-JP">Japanese</option>
+                <option value="ko-KR">Korean</option>
+                <option value="zh-CN">Chinese</option>
+            </select>
+
+            <select id="voiceSelect">
+                <option value="">Select Voice</option>
+            </select>
+
+            <button id="confirmSelection">Start Call</button>
+        </div>
+    </div>
+
+    <!-- Floating Chat Button and Window -->
+    <div class="chat-button" onclick="toggleChat()">
+        <i class="fas fa-comment"></i>
+    </div>
+
+    <div id="chatPopup" class="chat-popup">
+        <div class="chat-header">
+            <h3>Quick Medical Chat</h3>
+            <button class="close-btn" onclick="toggleChat()">×</button>
+        </div>
+        
+        <!-- Messages Container with Custom Scrollbar -->
+        <div id="popupMessages" class="messages-container custom-scrollbar">
+            <div class="message ai-message">
+                <div class="message-content">
+                    Hello! How can I assist you with your medical questions?
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Container -->
+        <div class="input-container">
+            <!-- Image Upload with Prompt -->
+            <div class="upload-container">
+                <input type="file" id="popup-image-upload" accept="image/*" onchange="handlePopupImageUpload(event)" style="display: none;">
+                <label for="popup-image-upload" class="upload-btn">
+                    <i class="fas fa-image"></i>
+                </label>
+                <input type="text" id="image-prompt" placeholder="Enter prompt for image analysis..." class="message-input" style="display: none;">
+            </div>
+
+            <!-- Text Input -->
+            <input type="text" id="popup-message-input" placeholder="Type your message..." class="message-input">
+            
+            <!-- Send Button -->
+            <button onclick="sendPopupMessage()" class="send-btn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
+            const startCallButton = document.getElementById('startCall');
+            const endCallButton = document.getElementById('endCall');
+            const messagesContainer = document.getElementById('messages');
+            const animatedBall = document.getElementById('animatedBall');
+            const controls = document.getElementById('controls');
+            const languageModal = document.getElementById('languageModal');
+            const languageSelect = document.getElementById('languageSelect');
+            const voiceSelect = document.getElementById('voiceSelect');
+            const confirmButton = document.getElementById('confirmSelection');
+
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+            let callActive = false;
+            let isProcessing = false;
+            let selectedLanguage = '';
+            let selectedVoice = '';
+
+            // Silence detection variables
+            let silenceFrames = 0;
+            let hasSpoken = false;
+            const SILENCE_THRESHOLD = 0.07; // Lower threshold for less sensitivity
+            const SILENCE_FRAMES_REQUIRED = 60;
+
+            // Add message to chat container
+            function addMessage(sender, text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                messageDiv.textContent = text;
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Voice mapping based on language
+            const voiceMapping = {
+                'ar-SA': ['ar-SA-HamedNeural', 'ar-SA-ZariyahNeural'],
+                'en-US': ['en-US-JennyNeural', 'en-US-GuyNeural'],
+                'es-ES': ['es-ES-ElviraNeural', 'es-ES-AlvaroNeural'],
+                'fr-FR': ['fr-FR-DeniseNeural', 'fr-FR-HenriNeural'],
+                'de-DE': ['de-DE-KatjaNeural', 'de-DE-ConradNeural'],
+                'it-IT': ['it-IT-ElsaNeural', 'it-IT-IsabellaNeural'],
+                'pt-BR': ['pt-BR-FranciscaNeural', 'pt-BR-AntonioNeural'],
+                'ru-RU': ['ru-RU-DariyaNeural', 'ru-RU-DmitryNeural'],
+                'ja-JP': ['ja-JP-NanamiNeural', 'ja-JP-KeitaNeural'],
+                'ko-KR': ['ko-KR-SunHiNeural', 'ko-KR-InJoonNeural'],
+                'zh-CN': ['zh-CN-XiaoxiaoNeural', 'zh-CN-YunxiNeural']
+            };
+
+            // Update voice options when language is selected
+            languageSelect.addEventListener('change', function() {
+                const language = this.value;
+                voiceSelect.innerHTML = '<option value="">Select Voice</option>';
+                
+                if (language && voiceMapping[language]) {
+                    voiceMapping[language].forEach(voice => {
+                        const option = document.createElement('option');
+                        option.value = voice;
+                        option.textContent = voice.split('-').pop();
+                        voiceSelect.appendChild(option);
+                    });
+                }
+            });
+
+            // Show language selection modal when start call is clicked
+            startCallButton.addEventListener('click', () => {
+                languageModal.style.display = 'flex';
+            });
+
+            // Handle language and voice selection confirmation
+            confirmButton.addEventListener('click', () => {
+                selectedLanguage = languageSelect.value;
+                selectedVoice = voiceSelect.value;
+                
+                if (selectedLanguage && selectedVoice) {
+                    languageModal.style.display = 'none';
+                    startCall();
+                } else {
+                    alert('Please select both language and voice');
+                }
+            });
+
+            function startCall() {
+                callActive = true;
+                console.log('Call started');
+                startCallButton.style.display = 'none';
+                endCallButton.style.display = 'block';
+                endCallButton.disabled = false;
+                messagesContainer.style.display = 'block';
+                addMessage('system', 'Call started. Speak now...');
+                startRecording();
+            }
+
+            function endCall() {
+                callActive = false;
+                console.log('Call ended');
+                stopRecording();
+                startCallButton.style.display = 'block';
+                endCallButton.style.display = 'none';
+                addMessage('system', 'Call ended.');
+                animatedBall.className = 'animated-ball idle';
+                isProcessing = false;
+            }
+
+            function startRecording() {
+                if (isRecording || isProcessing) {
+                    console.log('Cannot start recording - Already recording or processing');
+                    return;
+                }
+
+                console.log('Starting recording...');
+                silenceFrames = 0;
+                hasSpoken = false;
+
+                navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        volume: 0.5 // Lower volume for less sensitivity
+                    }
+                })
+                .then(stream => {
+                    isRecording = true;
+                    animatedBall.className = 'animated-ball recording';
+                    console.log('Recording started');
+
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'audio/webm;codecs=opus',
+                        audioBitsPerSecond: 128000
+                    });
+                    audioChunks = [];
+
+                    // Set up audio analysis for silence detection
+                    const audioContext = new AudioContext();
+                    const analyser = audioContext.createAnalyser();
+                    const microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    function checkSilence() {
+                        if (!isRecording) return;
+
+                        analyser.getByteFrequencyData(dataArray);
+                        const averageVolume = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const isSilent = averageVolume < SILENCE_THRESHOLD * 255;
+
+                        if (isSilent) {
+                            if (hasSpoken) {
+                                silenceFrames++;
+                                if (silenceFrames >= SILENCE_FRAMES_REQUIRED) {
+                                    console.log('Silence detected - Stopping recording');
+                                    stopRecording();
+                                    return;
+                                }
+                            }
+                        } else {
+                            hasSpoken = true;
+                            silenceFrames = 0;
+                        }
+
+                        requestAnimationFrame(checkSilence);
+                    }
+
+                    checkSilence();
+
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                                const base64Audio = reader.result.split(',')[1];
+                                socket.emit('audio_chunk', {
+                                    chunk: base64Audio,
+                                    language: selectedLanguage,
+                                    voice: selectedVoice
+                                });
+                            };
+                            reader.readAsDataURL(event.data);
+                        }
+                    };
+
+                    mediaRecorder.start();
+                })
+                .catch(err => {
+                    console.error('Error accessing microphone:', err);
+                    alert('Error accessing microphone. Please ensure you have granted microphone permissions.');
+                    isRecording = false;
+                    isProcessing = false;
+                });
+            }
+
+            function stopRecording() {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    isRecording = false;
+                    isProcessing = true;
+                    animatedBall.className = 'animated-ball idle';
+                }
+            }
+
+            socket.on('chatbot_response', data => {
+                console.log('Received chatbot response');
+                animatedBall.className = 'animated-ball playing';
+
+                // Use Audio element for direct playback
+                const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+
+                // Set up audio visualization for the ball
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                // Create a source from the audio element
+                audio.addEventListener('canplaythrough', () => {
+                    const source = audioContext.createMediaElementSource(audio);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    // Start audio playback
+                    audio.play();
+
+                    // Function to visualize audio and animate the ball
+                    function animateBall() {
+                        if (audio.paused || audio.ended) {
+                            // Reset animation when audio finishes
+                            console.log('Audio playback ended');
+                            animatedBall.className = 'animated-ball idle';
+                            animatedBall.style.transform = 'translate(-50%, -50%) scale(1)';
+                            isProcessing = false;
+
+                            // Resume recording if call is still active
+                            if (callActive && !isRecording && !isProcessing) {
+                                setTimeout(startRecording, 500);
+                            }
+                            return;
+                        }
+
+                        // Get frequency data
+                        analyser.getByteFrequencyData(dataArray);
+
+                        // Calculate average volume
+                        const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const normalizedVolume = Math.min(2.0, 1 + (average / 255) * 1.0); // Scale between 1.0 and 2.0
+
+                        // Apply dynamic scaling based on volume
+                        animatedBall.style.transform = `translate(-50%, -50%) scale(${normalizedVolume})`;
+
+                        // Continue animation
+                        requestAnimationFrame(animateBall);
+                    }
+
+                    // Start animation
+                    animateBall();
+                });
+
+                audio.addEventListener('error', (e) => {
+                    console.error('Audio playback error:', e);
+                    animatedBall.className = 'animated-ball idle';
+                    isProcessing = false;
+
+                    // Resume recording if call is still active
+                    if (callActive && !isRecording && !isProcessing) {
+                        setTimeout(startRecording, 500);
+                    }
+                });
+            });
+
+            socket.on('error', data => {
+                console.error(`Server error: ${data.message}`);
+                alert(`Error: ${data.message}`);
+                endCall();
+            });
+
+            socket.on('connect', () => {
+                console.log('Socket connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Socket disconnected from server');
+                endCall();
+            });
+
+            // Update endCall button click handler
+            endCallButton.addEventListener('click', () => {
+                endCall();
+                socket.emit('end_recording', {
+                    language: selectedLanguage,
+                    voice: selectedVoice,
+                    requestSummary: true
+                });
+            });
+
+            // Handle summary response
+            socket.on('summary', data => {
+                console.log('Received summary');
+                animatedBall.className = 'animated-ball playing';
+
+                // Play the summary audio
+                const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+                
+                // Set up audio visualization
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                audio.addEventListener('canplaythrough', () => {
+                    const source = audioContext.createMediaElementSource(audio);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    audio.play();
+
+                    function animateBall() {
+                        if (audio.paused || audio.ended) {
+                            console.log('Summary playback ended');
+                            animatedBall.className = 'animated-ball idle';
+                            animatedBall.style.transform = 'translate(-50%, -50%) scale(1)';
+                            return;
+                        }
+
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const normalizedVolume = Math.min(2.0, 1 + (average / 255) * 1.0);
+                        animatedBall.style.transform = `translate(-50%, -50%) scale(${normalizedVolume})`;
+
+                        requestAnimationFrame(animateBall);
+                    }
+
+                    animateBall();
+                });
+
+                audio.addEventListener('error', (e) => {
+                    console.error('Summary audio playback error:', e);
+                    animatedBall.className = 'animated-ball idle';
+                });
+            });
+
+            // Chat window functionality
+            function toggleChat() {
+                const chatPopup = document.getElementById('chatPopup');
+                const chatButton = document.querySelector('.chat-button');
+                
+                if (chatPopup.style.display === 'block') {
+                    chatPopup.style.display = 'none';
+                    chatButton.innerHTML = '<i class="fas fa-comment"></i>';
+                } else {
+                    chatPopup.style.display = 'block';
+                    chatButton.innerHTML = '<i class="fas fa-times"></i>';
+                }
+            }
+
+            // Close chat window when clicking outside
+            document.addEventListener('click', function(event) {
+                const chatPopup = document.getElementById('chatPopup');
+                const chatButton = document.querySelector('.chat-button');
+                
+                if (chatPopup && chatButton && !chatPopup.contains(event.target) && !chatButton.contains(event.target)) {
+                    chatPopup.style.display = 'none';
+                    chatButton.innerHTML = '<i class="fas fa-comment"></i>';
+                }
+            });
+
+            // Handle popup messages
+            function sendPopupMessage() {
+                const messageInput = document.getElementById('popup-message-input');
+                const message = messageInput.value.trim();
+                
+                if (message) {
+                    addPopupMessage('user', message);
+                    messageInput.value = '';
+                    
+                    // Send message to backend
+                    socket.emit('chat_message', { message: message });
+                }
+            }
+
+            function addPopupMessage(sender, message) {
+                const messagesContainer = document.getElementById('popupMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                
+                if (sender === 'ai') {
+                    contentDiv.innerHTML = formatAIMessage(message);
+                } else {
+                    contentDiv.textContent = message;
+                }
+                
+                messageDiv.appendChild(contentDiv);
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Handle popup image upload
+            function handlePopupImageUpload(event) {
+                const file = event.target.files[0];
+                const promptInput = document.getElementById('image-prompt');
+                
+                if (file) {
+                    // Show prompt input
+                    promptInput.style.display = 'block';
+                    
+                    // Add event listener for prompt input
+                    promptInput.onkeypress = function(e) {
+                        if (e.key === 'Enter') {
+                            const prompt = promptInput.value.trim();
+                            if (prompt) {
+                                const reader = new FileReader();
+                                reader.onload = function(e) {
+                                    const imageData = e.target.result;
+                                    // Add image message to chat
+                                    addPopupMessage('user', `Uploading image with prompt: ${prompt}`);
+                                    
+                                    // Send image and prompt to backend
+                                    socket.emit('analyze_image', {
+                                        image: imageData.split(',')[1],
+                                        prompt: prompt
+                                    });
+                                    
+                                    // Reset and hide prompt input
+                                    promptInput.value = '';
+                                    promptInput.style.display = 'none';
+                                };
+                                reader.readAsDataURL(file);
+                            }
+                        }
+                    };
+                }
+            }
+
+            // Handle socket events for chat
+            socket.on('chat_response', function(data) {
+                addPopupMessage('ai', data.message);
+            });
+
+            socket.on('image_analysis', function(data) {
+                addPopupMessage('ai', data.analysis);
+            });
+
+            // Add event listener for Enter key in chat input
+            document.getElementById('popup-message-input').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    sendPopupMessage();
+                }
+            });
+
+            // Make chat functions globally accessible
+            window.toggleChat = toggleChat;
+            window.sendPopupMessage = sendPopupMessage;
+            window.handlePopupImageUpload = handlePopupImageUpload;
+        });
+
+        // Format AI messages to look more professional
+        function formatAIMessage(message) {
+            // Split message into sections
+            const sections = message.split('###');
+            let formattedMessage = '';
+
+            sections.forEach((section, index) => {
+                if (index === 0) return; // Skip empty first section
+                
+                // Format section title
+                const lines = section.trim().split('\n');
+                const title = lines[0].trim();
+                formattedMessage += `<h4>${title}</h4>`;
+
+                // Format content as bullet points
+                const content = lines.slice(1).join('\n');
+                const points = content.split('-').filter(point => point.trim());
+                
+                if (points.length) {
+                    formattedMessage += '<ul>';
+                    points.forEach(point => {
+                        if (point.trim()) {
+                            formattedMessage += `<li>${point.trim()}</li>`;
+                        }
+                    });
+                    formattedMessage += '</ul>';
+                }
+            });
+
+            return formattedMessage || message;
+        }
+
+        // Add slider functionality
+        function createSlider(message) {
+            const sliderContainer = document.createElement('div');
+            sliderContainer.className = 'message-slider';
+            
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.className = 'slider';
+            slider.min = '0';
+            slider.max = '100';
+            slider.value = '50';
+            
+            const valueDisplay = document.createElement('div');
+            valueDisplay.className = 'slider-value';
+            valueDisplay.textContent = slider.value + '%';
+            
+            slider.oninput = function() {
+                valueDisplay.textContent = this.value + '%';
+            };
+            
+            sliderContainer.appendChild(slider);
+            sliderContainer.appendChild(valueDisplay);
+            return sliderContainer;
+        }
+    </script>
+</body>
+</html>
