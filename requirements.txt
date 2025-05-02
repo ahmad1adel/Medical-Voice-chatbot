@@ -14,4 +14,3 @@ requests
 python-engineio
 python-socketio
 gunicorn
-ffmpeg
