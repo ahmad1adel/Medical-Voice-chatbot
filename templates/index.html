@@ -647,36 +647,26 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
-        // Connection status indicator
-        function updateConnectionStatus(status) {
-            const statusIndicator = document.getElementById('connectionStatus');
-            if (statusIndicator) {
-                statusIndicator.textContent = status;
-                statusIndicator.className = `status-${status.toLowerCase()}`;
-            }
-        }
-    
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize Socket.IO connection for Azure
-            const socket = io("https://testing-chatbot-dxefcyegfnacbpg8.azurewebsites.net", {
-                path: "/socket.io",
-                transports: ["websocket"],
-                secure: true,
-                reconnect: true,
-                rejectUnauthorized: false // Temporary for testing
-            });
-    
-            // UI Elements
+
+document.addEventListener('DOMContentLoaded', () => {
+        // Update Socket.IO connection for Azure deployment
+        const socket = io("https://testing-chatbot-dxefcyegfnacbpg8.uaenorth-01.azurewebsites.net", {
+            path: "/socket.io",
+            transports: ["websocket"],  // Force WebSocket transport
+            secure: true,
+            reconnect: true,
+            rejectUnauthorized: false  // Temporary for testing SSL
+        });
             const startCallButton = document.getElementById('startCall');
             const endCallButton = document.getElementById('endCall');
             const messagesContainer = document.getElementById('messages');
             const animatedBall = document.getElementById('animatedBall');
+            const controls = document.getElementById('controls');
             const languageModal = document.getElementById('languageModal');
             const languageSelect = document.getElementById('languageSelect');
             const voiceSelect = document.getElementById('voiceSelect');
             const confirmButton = document.getElementById('confirmSelection');
-    
-            // State variables
+
             let mediaRecorder;
             let audioChunks = [];
             let isRecording = false;
@@ -684,14 +674,23 @@
             let isProcessing = false;
             let selectedLanguage = '';
             let selectedVoice = '';
-    
-            // Audio analysis constants
-            const SILENCE_THRESHOLD = 0.07;
-            const SILENCE_FRAMES_REQUIRED = 60;
+
+            // Silence detection variables
             let silenceFrames = 0;
             let hasSpoken = false;
-    
-            // Voice mapping
+            const SILENCE_THRESHOLD = 0.07; // Lower threshold for less sensitivity
+            const SILENCE_FRAMES_REQUIRED = 60;
+
+            // Add message to chat container
+            function addMessage(sender, text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                messageDiv.textContent = text;
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Voice mapping based on language
             const voiceMapping = {
                 'ar-SA': ['ar-SA-HamedNeural', 'ar-SA-ZariyahNeural'],
                 'en-US': ['en-US-JennyNeural', 'en-US-GuyNeural'],
@@ -705,49 +704,8 @@
                 'ko-KR': ['ko-KR-SunHiNeural', 'ko-KR-InJoonNeural'],
                 'zh-CN': ['zh-CN-XiaoxiaoNeural', 'zh-CN-YunxiNeural']
             };
-    
-            // Connection handlers
-            socket.on('connect', () => {
-                console.log('Connected to server');
-                updateConnectionStatus('Connected');
-            });
-    
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
-                updateConnectionStatus('Disconnected');
-                endCall();
-            });
-    
-            socket.on('connect_error', (error) => {
-                console.error('Connection error:', error);
-                updateConnectionStatus('Reconnecting');
-                setTimeout(() => socket.connect(), 5000);
-            });
-    
-            socket.on('reconnect_attempt', () => {
-                console.log('Reconnection attempt');
-                socket.io.opts.transports = ['websocket'];
-            });
-    
-            // Ping/pong for connection monitoring
-            setInterval(() => {
-                socket.emit('ping', Date.now());
-            }, 30000);
-    
-            socket.on('pong', (timestamp) => {
-                console.log(`Latency: ${Date.now() - timestamp}ms`);
-            });
-    
-            // Message handling
-            function addMessage(sender, text) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}-message`;
-                messageDiv.textContent = text;
-                messagesContainer.appendChild(messageDiv);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-    
-            // Language selection handlers
+
+            // Update voice options when language is selected
             languageSelect.addEventListener('change', function() {
                 const language = this.value;
                 voiceSelect.innerHTML = '<option value="">Select Voice</option>';
@@ -761,11 +719,13 @@
                     });
                 }
             });
-    
+
+            // Show language selection modal when start call is clicked
             startCallButton.addEventListener('click', () => {
                 languageModal.style.display = 'flex';
             });
-    
+
+            // Handle language and voice selection confirmation
             confirmButton.addEventListener('click', () => {
                 selectedLanguage = languageSelect.value;
                 selectedVoice = voiceSelect.value;
@@ -777,19 +737,21 @@
                     alert('Please select both language and voice');
                 }
             });
-    
-            // Call control functions
+
             function startCall() {
                 callActive = true;
+                console.log('Call started');
                 startCallButton.style.display = 'none';
                 endCallButton.style.display = 'block';
+                endCallButton.disabled = false;
                 messagesContainer.style.display = 'block';
                 addMessage('system', 'Call started. Speak now...');
                 startRecording();
             }
-    
+
             function endCall() {
                 callActive = false;
+                console.log('Call ended');
                 stopRecording();
                 startCallButton.style.display = 'block';
                 endCallButton.style.display = 'none';
@@ -797,31 +759,73 @@
                 animatedBall.className = 'animated-ball idle';
                 isProcessing = false;
             }
-    
-            // Audio recording functions
+
             function startRecording() {
-                if (isRecording || isProcessing) return;
-    
+                if (isRecording || isProcessing) {
+                    console.log('Cannot start recording - Already recording or processing');
+                    return;
+                }
+
+                console.log('Starting recording...');
+                silenceFrames = 0;
+                hasSpoken = false;
+
                 navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true,
                         sampleRate: 16000,
-                        channelCount: 1
+                        channelCount: 1,
+                        volume: 0.5 // Lower volume for less sensitivity
                     }
-                }).then(stream => {
+                })
+                .then(stream => {
                     isRecording = true;
                     animatedBall.className = 'animated-ball recording';
-                    
+                    console.log('Recording started');
+
                     mediaRecorder = new MediaRecorder(stream, {
                         mimeType: 'audio/webm;codecs=opus',
                         audioBitsPerSecond: 128000
                     });
-    
                     audioChunks = [];
-                    setupSilenceDetection(stream);
-    
+
+                    // Set up audio analysis for silence detection
+                    const audioContext = new AudioContext();
+                    const analyser = audioContext.createAnalyser();
+                    const microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    function checkSilence() {
+                        if (!isRecording) return;
+
+                        analyser.getByteFrequencyData(dataArray);
+                        const averageVolume = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const isSilent = averageVolume < SILENCE_THRESHOLD * 255;
+
+                        if (isSilent) {
+                            if (hasSpoken) {
+                                silenceFrames++;
+                                if (silenceFrames >= SILENCE_FRAMES_REQUIRED) {
+                                    console.log('Silence detected - Stopping recording');
+                                    stopRecording();
+                                    return;
+                                }
+                            }
+                        } else {
+                            hasSpoken = true;
+                            silenceFrames = 0;
+                        }
+
+                        requestAnimationFrame(checkSilence);
+                    }
+
+                    checkSilence();
+
                     mediaRecorder.ondataavailable = event => {
                         if (event.data.size > 0) {
                             const reader = new FileReader();
@@ -830,51 +834,25 @@
                                 socket.emit('audio_chunk', {
                                     chunk: base64Audio,
                                     language: selectedLanguage,
-                                    voice: selectedVoice,
-                                    sequence: audioChunks.length,
-                                    timestamp: Date.now()
+                                    voice: selectedVoice
                                 });
                             };
                             reader.readAsDataURL(event.data);
                         }
                     };
-    
-                    mediaRecorder.start(1000);
-                }).catch(handleMicError);
+
+                    mediaRecorder.start();
+                })
+                .catch(err => {
+                    console.error('Error accessing microphone:', err);
+                    alert('Error accessing microphone. Please ensure you have granted microphone permissions.');
+                    isRecording = false;
+                    isProcessing = false;
+                });
             }
-    
-            function setupSilenceDetection(stream) {
-                const audioContext = new AudioContext();
-                const analyser = audioContext.createAnalyser();
-                const microphone = audioContext.createMediaStreamSource(stream);
-                microphone.connect(analyser);
-                analyser.fftSize = 256;
-                
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-    
-                const checkSilence = () => {
-                    if (!isRecording) return;
-                    
-                    analyser.getByteFrequencyData(dataArray);
-                    const average = dataArray.reduce((sum, val) => sum + val, 0) / bufferLength;
-                    
-                    if (average < SILENCE_THRESHOLD * 255) {
-                        if (hasSpoken) silenceFrames++;
-                        if (silenceFrames >= SILENCE_FRAMES_REQUIRED) stopRecording();
-                    } else {
-                        hasSpoken = true;
-                        silenceFrames = 0;
-                    }
-                    
-                    requestAnimationFrame(checkSilence);
-                };
-    
-                checkSilence();
-            }
-    
+
             function stopRecording() {
-                if (mediaRecorder?.state === 'recording') {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
                     mediaRecorder.stop();
                     mediaRecorder.stream.getTracks().forEach(track => track.stop());
                     isRecording = false;
@@ -882,128 +860,321 @@
                     animatedBall.className = 'animated-ball idle';
                 }
             }
-    
-            // Response handling
+
             socket.on('chatbot_response', data => {
-                if (!data?.audio) return;
-    
+                console.log('Received chatbot response');
                 animatedBall.className = 'animated-ball playing';
+
+                // Use Audio element for direct playback
                 const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
-                
+
+                // Set up audio visualization for the ball
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                // Create a source from the audio element
                 audio.addEventListener('canplaythrough', () => {
-                    const audioContext = new AudioContext();
-                    const analyser = audioContext.createAnalyser();
                     const source = audioContext.createMediaElementSource(audio);
-                    
                     source.connect(analyser);
                     analyser.connect(audioContext.destination);
+
+                    // Start audio playback
                     audio.play();
-    
-                    const animate = () => {
+
+                    // Function to visualize audio and animate the ball
+                    function animateBall() {
                         if (audio.paused || audio.ended) {
+                            // Reset animation when audio finishes
+                            console.log('Audio playback ended');
                             animatedBall.className = 'animated-ball idle';
-                            audioContext.close();
-                            if (callActive) setTimeout(startRecording, 500);
+                            animatedBall.style.transform = 'translate(-50%, -50%) scale(1)';
+                            isProcessing = false;
+
+                            // Resume recording if call is still active
+                            if (callActive && !isRecording && !isProcessing) {
+                                setTimeout(startRecording, 500);
+                            }
                             return;
                         }
-                        
-                        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                        // Get frequency data
                         analyser.getByteFrequencyData(dataArray);
-                        const scale = 1 + (dataArray.reduce((s, v) => s + v, 0) / dataArray.length / 255);
-                        animatedBall.style.transform = `translate(-50%, -50%) scale(${scale})`;
-                        
-                        requestAnimationFrame(animate);
-                    };
-    
-                    animate();
+
+                        // Calculate average volume
+                        const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const normalizedVolume = Math.min(2.0, 1 + (average / 255) * 1.0); // Scale between 1.0 and 2.0
+
+                        // Apply dynamic scaling based on volume
+                        animatedBall.style.transform = `translate(-50%, -50%) scale(${normalizedVolume})`;
+
+                        // Continue animation
+                        requestAnimationFrame(animateBall);
+                    }
+
+                    // Start animation
+                    animateBall();
                 });
-    
-                audio.addEventListener('error', () => {
+
+                audio.addEventListener('error', (e) => {
+                    console.error('Audio playback error:', e);
                     animatedBall.className = 'animated-ball idle';
-                    socket.emit('error', { message: 'Audio playback failed' });
+                    isProcessing = false;
+
+                    // Resume recording if call is still active
+                    if (callActive && !isRecording && !isProcessing) {
+                        setTimeout(startRecording, 500);
+                    }
                 });
             });
-    
+
             socket.on('error', data => {
-                console.error('Server error:', data.message);
+                console.error(`Server error: ${data.message}`);
                 alert(`Error: ${data.message}`);
                 endCall();
             });
-    
-            // Chat UI functions
-            window.toggleChat = () => {
+
+            socket.on('connect', () => {
+                console.log('Socket connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Socket disconnected from server');
+                endCall();
+            });
+
+            // Update endCall button click handler
+            endCallButton.addEventListener('click', () => {
+                endCall();
+                socket.emit('end_recording', {
+                    language: selectedLanguage,
+                    voice: selectedVoice,
+                    requestSummary: true
+                });
+            });
+
+            // Handle summary response
+            socket.on('summary', data => {
+                console.log('Received summary');
+                animatedBall.className = 'animated-ball playing';
+
+                // Play the summary audio
+                const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+                
+                // Set up audio visualization
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                audio.addEventListener('canplaythrough', () => {
+                    const source = audioContext.createMediaElementSource(audio);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    audio.play();
+
+                    function animateBall() {
+                        if (audio.paused || audio.ended) {
+                            console.log('Summary playback ended');
+                            animatedBall.className = 'animated-ball idle';
+                            animatedBall.style.transform = 'translate(-50%, -50%) scale(1)';
+                            return;
+                        }
+
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+                        const normalizedVolume = Math.min(2.0, 1 + (average / 255) * 1.0);
+                        animatedBall.style.transform = `translate(-50%, -50%) scale(${normalizedVolume})`;
+
+                        requestAnimationFrame(animateBall);
+                    }
+
+                    animateBall();
+                });
+
+                audio.addEventListener('error', (e) => {
+                    console.error('Summary audio playback error:', e);
+                    animatedBall.className = 'animated-ball idle';
+                });
+            });
+
+            // Chat window functionality
+            function toggleChat() {
                 const chatPopup = document.getElementById('chatPopup');
-                chatPopup.style.display = chatPopup.style.display === 'block' ? 'none' : 'block';
-            };
-    
-            window.sendPopupMessage = () => {
-                const input = document.getElementById('popup-message-input');
-                const message = input.value.trim();
+                const chatButton = document.querySelector('.chat-button');
+                
+                if (chatPopup.style.display === 'block') {
+                    chatPopup.style.display = 'none';
+                    chatButton.innerHTML = '<i class="fas fa-comment"></i>';
+                } else {
+                    chatPopup.style.display = 'block';
+                    chatButton.innerHTML = '<i class="fas fa-times"></i>';
+                }
+            }
+
+            // Close chat window when clicking outside
+            document.addEventListener('click', function(event) {
+                const chatPopup = document.getElementById('chatPopup');
+                const chatButton = document.querySelector('.chat-button');
+                
+                if (chatPopup && chatButton && !chatPopup.contains(event.target) && !chatButton.contains(event.target)) {
+                    chatPopup.style.display = 'none';
+                    chatButton.innerHTML = '<i class="fas fa-comment"></i>';
+                }
+            });
+
+            // Handle popup messages
+            function sendPopupMessage() {
+                const messageInput = document.getElementById('popup-message-input');
+                const message = messageInput.value.trim();
                 
                 if (message) {
-                    addMessage('user', message);
-                    socket.emit('chat_message', { message });
-                    input.value = '';
+                    addPopupMessage('user', message);
+                    messageInput.value = '';
+                    
+                    // Send message to backend
+                    socket.emit('chat_message', { message: message });
                 }
-            };
-    
-            window.handlePopupImageUpload = event => {
+            }
+
+            function addPopupMessage(sender, message) {
+                const messagesContainer = document.getElementById('popupMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                
+                if (sender === 'ai') {
+                    contentDiv.innerHTML = formatAIMessage(message);
+                } else {
+                    contentDiv.textContent = message;
+                }
+                
+                messageDiv.appendChild(contentDiv);
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Handle popup image upload
+            function handlePopupImageUpload(event) {
                 const file = event.target.files[0];
                 const promptInput = document.getElementById('image-prompt');
                 
                 if (file) {
+                    // Show prompt input
                     promptInput.style.display = 'block';
-                    promptInput.onkeypress = e => {
-                        if (e.key === 'Enter' && promptInput.value.trim()) {
-                            const reader = new FileReader();
-                            reader.onload = e => {
-                                socket.emit('analyze_image', {
-                                    image: e.target.result.split(',')[1],
-                                    prompt: promptInput.value
-                                });
-                                promptInput.value = '';
-                                promptInput.style.display = 'none';
-                            };
-                            reader.readAsDataURL(file);
+                    
+                    // Add event listener for prompt input
+                    promptInput.onkeypress = function(e) {
+                        if (e.key === 'Enter') {
+                            const prompt = promptInput.value.trim();
+                            if (prompt) {
+                                const reader = new FileReader();
+                                reader.onload = function(e) {
+                                    const imageData = e.target.result;
+                                    // Add image message to chat
+                                    addPopupMessage('user', `Uploading image with prompt: ${prompt}`);
+                                    
+                                    // Send image and prompt to backend
+                                    socket.emit('analyze_image', {
+                                        image: imageData.split(',')[1],
+                                        prompt: prompt
+                                    });
+                                    
+                                    // Reset and hide prompt input
+                                    promptInput.value = '';
+                                    promptInput.style.display = 'none';
+                                };
+                                reader.readAsDataURL(file);
+                            }
                         }
                     };
                 }
-            };
-    
-            // Initialize event listeners
-            endCallButton.addEventListener('click', () => {
-                if (confirm('End call?')) {
-                    endCall();
-                    socket.emit('end_recording', {
-                        language: selectedLanguage,
-                        voice: selectedVoice,
-                        requestSummary: true
-                    });
+            }
+
+            // Handle socket events for chat
+            socket.on('chat_response', function(data) {
+                addPopupMessage('ai', data.message);
+            });
+
+            socket.on('image_analysis', function(data) {
+                addPopupMessage('ai', data.analysis);
+            });
+
+            // Add event listener for Enter key in chat input
+            document.getElementById('popup-message-input').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    sendPopupMessage();
                 }
             });
-    
-            document.getElementById('popup-message-input').addEventListener('keypress', e => {
-                if (e.key === 'Enter') window.sendPopupMessage();
-            });
+
+            // Make chat functions globally accessible
+            window.toggleChat = toggleChat;
+            window.sendPopupMessage = sendPopupMessage;
+            window.handlePopupImageUpload = handlePopupImageUpload;
         });
-    
-        // Message formatting helper
+
+        // Format AI messages to look more professional
         function formatAIMessage(message) {
-            try {
-                return message.split('###').slice(1).map(section => {
-                    const lines = section.trim().split('\n');
-                    return `<h4>${lines[0]}</h4><ul>${
-                        lines.slice(1).map(line => 
-                            `<li>${line.replace(/^-/, '').trim()}</li>`
-                        ).join('')
-                    }</ul>`;
-                }).join('');
-            } catch (e) {
-                return `<div class="error-message">${message}</div>`;
-            }
+            // Split message into sections
+            const sections = message.split('###');
+            let formattedMessage = '';
+
+            sections.forEach((section, index) => {
+                if (index === 0) return; // Skip empty first section
+                
+                // Format section title
+                const lines = section.trim().split('\n');
+                const title = lines[0].trim();
+                formattedMessage += `<h4>${title}</h4>`;
+
+                // Format content as bullet points
+                const content = lines.slice(1).join('\n');
+                const points = content.split('-').filter(point => point.trim());
+                
+                if (points.length) {
+                    formattedMessage += '<ul>';
+                    points.forEach(point => {
+                        if (point.trim()) {
+                            formattedMessage += `<li>${point.trim()}</li>`;
+                        }
+                    });
+                    formattedMessage += '</ul>';
+                }
+            });
+
+            return formattedMessage || message;
+        }
+
+        // Add slider functionality
+        function createSlider(message) {
+            const sliderContainer = document.createElement('div');
+            sliderContainer.className = 'message-slider';
+            
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.className = 'slider';
+            slider.min = '0';
+            slider.max = '100';
+            slider.value = '50';
+            
+            const valueDisplay = document.createElement('div');
+            valueDisplay.className = 'slider-value';
+            valueDisplay.textContent = slider.value + '%';
+            
+            slider.oninput = function() {
+                valueDisplay.textContent = this.value + '%';
+            };
+            
+            sliderContainer.appendChild(slider);
+            sliderContainer.appendChild(valueDisplay);
+            return sliderContainer;
         }
     </script>
-    
- 
 </body>
 </html>
