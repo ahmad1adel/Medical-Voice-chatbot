@@ -14,3 +14,6 @@ requests
 python-engineio
 python-socketio
 gunicorn
+gevent
+gevent-websocket
+greenlet
