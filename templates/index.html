@@ -786,7 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Recording started');
 
                     mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm;codecs=opus',
+                        mimeType: 'audio/wav',
                         audioBitsPerSecond: 128000
                     });
                     audioChunks = [];
