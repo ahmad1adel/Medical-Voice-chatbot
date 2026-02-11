@@ -26,13 +26,13 @@ The application follows a modern event-driven architecture using WebSockets for 
 
 ```mermaid
 graph TD
-    User([User]) <--> Frontend[Frontend (HTML/JS)]
-    Frontend <-->|Socket.IO| Backend[Flask Backend]
+    User([User]) <--> Frontend["Frontend (HTML/JS)"]
+    Frontend <-->|Socket.IO| Backend["Flask Backend"]
     
     subgraph Azure Cloud Services
-        Backend -->|STT & TTS| Speech[Azure Speech Services]
-        Backend -->|Image Analysis| Vision[Azure Computer Vision]
-        Backend <-->|Intelligence| OpenAI[Azure OpenAI (GPT-4)]
+        Backend -->|STT & TTS| Speech["Azure Speech Services"]
+        Backend -->|Image Analysis| Vision["Azure Computer Vision"]
+        Backend <-->|Intelligence| OpenAI["Azure OpenAI (GPT-4)"]
     end
     
     Speech -.->|Audio Stream| Backend
