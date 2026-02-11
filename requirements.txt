@@ -17,3 +17,4 @@ gunicorn
 gevent
 gevent-websocket
 greenlet
+python-dotenv

@@ -1,6 +1,10 @@
-.env
 __pycache__/
-*.pyc
-.vscode/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+*.log
 bin/ffmpeg
 bin/ffprobe
